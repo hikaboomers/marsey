@@ -4,7 +4,7 @@ no giving this to other people
 
 ```
 [[ballsdex.packages]]
-location = "git+https://github.com/hikaboomers/marsey.git"
+location = "git+https://github.com/hikaboomers/marsey.git@v1.0.0"
 path = "speak"
 enabled = true
 editable = false
