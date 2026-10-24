@@ -1,8 +1,7 @@
 """
 TalkAs - /say lets admins talk as a ball of their choice.
 
-The message is sent through a channel webhook, so it shows up with the
-ball's name and picture instead of the bot's.
+Its sent through a webhook
 """
 
 from __future__ import annotations
@@ -34,7 +33,7 @@ SendableChannel = Union[discord.TextChannel, discord.Thread]
 
 
 class TalkAs(commands.Cog):
-    """Talk as kerns, objects and balls."""
+    """Talk as balls."""
 
     def __init__(self, bot: "BallsDexBot"):
         self.bot = bot
@@ -79,7 +78,7 @@ class TalkAs(commands.Cog):
 
     # ----------------------------------------------------------------- command
 
-    @app_commands.command(name="say", description="Send a message as a ball of your choice")
+    @app_commands.command(name="say", description="I just said shit in a kettle.")
     @app_commands.describe(
         ball="The ball to talk as",
         message="What the ball says. Type \\n for a new line",
@@ -96,16 +95,16 @@ class TalkAs(commands.Cog):
         attachment: Optional[discord.Attachment] = None,
     ):
         if not await self._is_staff(interaction):
-            await interaction.response.send_message("You need to be an admin to use this.", ephemeral=True)
+            await interaction.response.send_message("Hey, no.", ephemeral=True)
             return
 
         target = channel or interaction.channel
         if not isinstance(target, (discord.TextChannel, discord.Thread)):
-            await interaction.response.send_message("Pick a text channel or thread.", ephemeral=True)
+            await interaction.response.send_message("oopsie", ephemeral=True)
             return
         if not target.permissions_for(target.guild.me).manage_webhooks:
             await interaction.response.send_message(
-                f"I need the **Manage Webhooks** permission in {target.mention}.", ephemeral=True
+                f"Yo, I need the **Manage Webhooks** permission in {target.mention}.", ephemeral=True
             )
             return
 
@@ -133,10 +132,10 @@ class TalkAs(commands.Cog):
             sent = await hook.send(**kwargs)
         except discord.NotFound:
             self._webhooks.clear()
-            await interaction.followup.send("The webhook vanished, please try again.", ephemeral=True)
+            await interaction.followup.send("You dont have a webhook silly", ephemeral=True)
             return
         except discord.HTTPException as e:
-            await interaction.followup.send(f"Discord refused the message: `{e.text}`", ephemeral=True)
+            await interaction.followup.send(f"Discord fuckin hates this: `{e.text}`", ephemeral=True)
             return
 
         await interaction.followup.send(f"Sent as **{name}**: {sent.jump_url}", ephemeral=True)
