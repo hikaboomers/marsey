@@ -1,153 +1,115 @@
-"""
-TalkAs - /say lets admins talk as a ball of their choice.
-
-Its sent through a webhook
-"""
-
-from __future__ import annotations
-
-import logging
-import os
-from typing import TYPE_CHECKING, Optional, Union
+import asyncio
+import io
+from pathlib import Path
 
 import discord
 from discord import app_commands
 from discord.ext import commands
-
-try:
-    from ballsdex.settings import settings
-except Exception:  # pragma: no cover
-    settings = None
+from PIL import Image, ImageDraw, ImageFont
 
 from ballsdex.core.utils.transformers import BallTransform
+from ballsdex.settings import settings
 
-if TYPE_CHECKING:
-    from ballsdex.core.bot import BallsDexBot
+FONT_FILE = Path(__file__).parent / "DeterminationMonoWebRegular-Z5oq.ttf"
 
-log = logging.getLogger("ballsdex.packages.talkas")
-
-WEBHOOK_NAME = "TalkAs"
-LOG_CHANNEL_ID = int(os.environ.get("TALKAS_LOG_CHANNEL_ID", "0") or 0)
-
-SendableChannel = Union[discord.TextChannel, discord.Thread]
+WIDTH = 800
+HEIGHT = 250
+BORDER = 8
+ART_SIZE = 170
+TEXT_X = 250
 
 
-class TalkAs(commands.Cog):
-    """Talk as balls."""
+def get_font():
+    if FONT_FILE.exists():
+        return ImageFont.truetype(str(FONT_FILE), 36)
+    return ImageFont.load_default(36)
 
-    def __init__(self, bot: "BallsDexBot"):
-        self.bot = bot
-        self._webhooks: dict[int, discord.Webhook] = {}
 
-    # ------------------------------------------------------------------ checks
+def find_art(wild_card):
+    name = str(wild_card).lstrip("/")
+    for folder in ("", "admin_panel/media", "static/uploads", "static"):
+        path = Path(folder) / name
+        if path.is_file():
+            return path
+        path = Path(folder) / Path(name).name
+        if path.is_file():
+            return path
+    return None
 
-    async def _is_staff(self, interaction: discord.Interaction) -> bool:
-        user = interaction.user
-        if await self.bot.is_owner(user):
-            return True
-        if not isinstance(user, discord.Member):
-            return False
-        if user.guild_permissions.administrator:
-            return True
-        role_ids: set[int] = set()
-        if settings is not None:
-            for attr in ("root_role_ids", "admin_role_ids"):
-                role_ids |= set(getattr(settings, attr, []) or [])
-        return any(r.id in role_ids for r in user.roles)
 
-    # ----------------------------------------------------------------- helpers
+def wrap_text(text, font, max_width):
+    lines = []
+    line = "* "
+    for word in text.split():
+        if font.getlength((line + word).strip()) > max_width and line.strip(" *"):
+            lines.append(line.rstrip())
+            line = "  " + word + " "
+        else:
+            line += word + " "
+    lines.append(line.rstrip())
+    return lines
 
-    def _ball_avatar(self, ball) -> Optional[str]:
-        emoji_id = getattr(ball, "emoji_id", None)
-        emoji = self.bot.get_emoji(emoji_id) if emoji_id else None
-        return emoji.url if emoji else None
 
-    async def _get_webhook(self, channel: SendableChannel) -> discord.Webhook:
-        parent = channel.parent if isinstance(channel, discord.Thread) else channel
-        assert parent is not None
-        cached = self._webhooks.get(parent.id)
-        if cached:
-            return cached
-        for hook in await parent.webhooks():
-            if hook.name == WEBHOOK_NAME and hook.user == self.bot.user:
-                self._webhooks[parent.id] = hook
-                return hook
-        hook = await parent.create_webhook(name=WEBHOOK_NAME, reason="TalkAs package")
-        self._webhooks[parent.id] = hook
-        return hook
+def make_image(art_path, text):
+    img = Image.new("RGB", (WIDTH, HEIGHT), "black")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, 0, WIDTH - 1, HEIGHT - 1], outline="white", width=BORDER)
 
-    # ----------------------------------------------------------------- command
+    if art_path:
+        art = Image.open(art_path).convert("RGBA")
+        art.thumbnail((ART_SIZE, ART_SIZE), Image.NEAREST)
+        x = 36 + (ART_SIZE - art.width) // 2
+        y = 40 + (ART_SIZE - art.height) // 2
+        img.paste(art, (x, y), art)
 
-    @app_commands.command(name="say", description="I just said shit in a kettle.")
-    @app_commands.describe(
-        ball="The ball to talk as",
-        message="What the ball says. Type \\n for a new line",
-        channel="Where to send it (default: this channel)",
-        attachment="Optional image/file to send with the message",
+    font = get_font()
+    lines = wrap_text(text, font, WIDTH - TEXT_X - BORDER - 20)
+    for i, line in enumerate(lines[:4]):
+        draw.text((TEXT_X, 36 + i * 48), line, font=font, fill="white")
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
+
+
+def is_admin(interaction):
+    user = interaction.user
+    if user.id in getattr(settings, "superuser_ids", []):
+        return True
+    role_ids = set(getattr(settings, "root_role_ids", [])) | set(
+        getattr(settings, "admin_role_ids", [])
     )
-    @app_commands.guild_only()
+    if isinstance(user, discord.Member):
+        if any(role.id in role_ids for role in user.roles):
+            return True
+        return user.guild_permissions.administrator
+    return False
+
+
+class Say(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(description="eat your kids")
+    @app_commands.describe(ball="i want to say this blah blah blah", text="this is 110th street")
     async def say(
         self,
         interaction: discord.Interaction,
         ball: BallTransform,
-        message: app_commands.Range[str, 1, 2000],
-        channel: Optional[SendableChannel] = None,
-        attachment: Optional[discord.Attachment] = None,
+        text: app_commands.Range[str, 1, 120],
     ):
-        if not await self._is_staff(interaction):
-            await interaction.response.send_message("Hey, no.", ephemeral=True)
-            return
-
-        target = channel or interaction.channel
-        if not isinstance(target, (discord.TextChannel, discord.Thread)):
-            await interaction.response.send_message("oopsie", ephemeral=True)
-            return
-        if not target.permissions_for(target.guild.me).manage_webhooks:
+        if not is_admin(interaction):
             await interaction.response.send_message(
-                f"Yo, I need the **Manage Webhooks** permission in {target.mention}.", ephemeral=True
+                "SORRY I CANNOT FUFILL THIS REQUEST", ephemeral=True
             )
             return
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        name = ball.country
-        avatar = self._ball_avatar(ball)
-
-        kwargs: dict = dict(
-            content=message.replace("\\n", "\n"),
-            username=name[:80],
-            # user and role pings work, @everyone / @here never do
-            allowed_mentions=discord.AllowedMentions(everyone=False, users=True, roles=True),
-            wait=True,
-        )
-        if avatar:
-            kwargs["avatar_url"] = avatar
-        if attachment:
-            kwargs["file"] = await attachment.to_file()
-        if isinstance(target, discord.Thread):
-            kwargs["thread"] = target
-
-        try:
-            hook = await self._get_webhook(target)
-            sent = await hook.send(**kwargs)
-        except discord.NotFound:
-            self._webhooks.clear()
-            await interaction.followup.send("You dont have a webhook silly", ephemeral=True)
-            return
-        except discord.HTTPException as e:
-            await interaction.followup.send(f"Discord fuckin hates this: `{e.text}`", ephemeral=True)
+        if not isinstance(interaction.channel, discord.abc.Messageable):
+            await interaction.response.send_message("SORRY I CANNOT FUFILL THIS REQUEST", ephemeral=True)
             return
 
-        await interaction.followup.send(f"Sent as **{name}**: {sent.jump_url}", ephemeral=True)
-
-        log.info("%s (%s) spoke as %s: %s", interaction.user, interaction.user.id, name, sent.jump_url)
-        if LOG_CHANNEL_ID:
-            log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
-            if isinstance(log_channel, discord.abc.Messageable):
-                try:
-                    await log_channel.send(
-                        f"{interaction.user.mention} spoke as **{name}** in {target.mention}: {sent.jump_url}",
-                        allowed_mentions=discord.AllowedMentions.none(),
-                    )
-                except discord.HTTPException:
-                    pass
+        await interaction.response.defer(ephemeral=True)
+        art = find_art(ball.wild_card)
+        image = await asyncio.to_thread(make_image, art, text)
+        await interaction.channel.send(file=discord.File(image, filename="dialog.png"))
+        await interaction.followup.send("Sent.", ephemeral=True)
