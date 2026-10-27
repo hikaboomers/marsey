@@ -8,9 +8,9 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 
 from ballsdex.core.utils.transformers import BallTransform
-from ballsdex.settings import settings
+from settings.models import settings
 
-FONT_FILE = Path(__file__).parent / "DeterminationMonoWebRegular-Z5oq.ttf"
+FONT_FILE = Path(__file__).parent / "DeterminationMonoWebRegular-Z5.oq.ttf"
 
 WIDTH = 800
 HEIGHT = 250
@@ -91,8 +91,8 @@ class Say(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(description="eat your kids")
-    @app_commands.describe(ball="i want to say this blah blah blah", text="this is 110th street")
+    @app_commands.command(description="pbskids.org")
+    @app_commands.describe(ball="hi", text="chat thing y")
     async def say(
         self,
         interaction: discord.Interaction,
@@ -101,11 +101,11 @@ class Say(commands.Cog):
     ):
         if not is_admin(interaction):
             await interaction.response.send_message(
-                "SORRY I CANNOT FUFILL THIS REQUEST", ephemeral=True
+                "https://tenor.com/view/verity-no-meme-song-gif-743959454618084151", ephemeral=True
             )
             return
         if not isinstance(interaction.channel, discord.abc.Messageable):
-            await interaction.response.send_message("SORRY I CANNOT FUFILL THIS REQUEST", ephemeral=True)
+            await interaction.response.send_message("https://tenor.com/view/verity-no-meme-song-gif-743959454618084151", ephemeral=True)
             return
 
         await interaction.response.defer(ephemeral=True)
