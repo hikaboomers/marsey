@@ -9,3 +9,6 @@ authors = [
     { name = "randomdex", email = "randomdex3@gmail.com" },
 ]
 readme = "README.md"
+
+[tool.setuptools.package-data]
+speak = ["*.ttf"]
