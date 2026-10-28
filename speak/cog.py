@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ballsdex.core.utils.transformers import BallTransform
 from settings.models import settings
 
-FONT_FILE = Path(__file__).parent / "DeterminationMonoWebRegular-Z5.oq.ttf"
+FONT_FILE = Path(__file__).parent / "DeterminationMonoWebRegular-Z5oq.ttf"
 
 WIDTH = 800
 HEIGHT = 250
@@ -26,6 +26,12 @@ def get_font():
 
 
 def find_art(wild_card):
+    try:
+        path = Path(wild_card.path)
+        if path.is_file():
+            return path
+    except Exception:
+        pass
     name = str(wild_card).lstrip("/")
     for folder in ("", "admin_panel/media", "static/uploads", "static"):
         path = Path(folder) / name
@@ -91,8 +97,8 @@ class Say(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(description="pbskids.org")
-    @app_commands.describe(ball="hi", text="chat thing y")
+    @app_commands.command(description="admins can only use this noob")
+    @app_commands.describe(ball="hi its me ball", text="this is 110th street")
     async def say(
         self,
         interaction: discord.Interaction,
